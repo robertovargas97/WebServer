@@ -1,0 +1,27 @@
+header {
+  background: rgb(255, 255, 255);
+}
+
+header nav {
+  width: 100%;
+  ul {
+    width: 100%;
+    overflow: hidden;
+    list-style: none;
+    a {
+      color: rgb(0, 0, 0);
+      text-decoration: none;
+      display: inline-block;
+      padding: 15px 20px;
+      transition: all 0.3s ease;
+      &:hover {
+        background: rgb(0, 0, 0);
+        color: rgb(212, 212, 212);
+      }
+    }
+    li {
+      /* display: inline-block;*/
+      float: left;
+    }
+  }
+}

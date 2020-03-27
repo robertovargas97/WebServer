@@ -1,0 +1,35 @@
+aside {
+    background: #161f26;
+    width: 30%;
+    float: right;
+    padding: 15px;
+    color: rgb(255, 255, 255);
+    .widget {
+        margin-bottom: 20px;
+        .titulo {
+            color: #ff8000;
+            border-bottom: 1px solid #ff8000;
+            margin-bottom: 10px;
+          }
+          ul {
+            list-style: none;
+            li {
+                border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+                padding: 10px 0;
+                a {
+                    color: white;
+                    text-decoration: none;
+                    &:hover{
+                        color: #8f8f8f;
+                    }
+                  }
+              }
+          }
+          p {
+            line-height: 27px;
+          }
+          
+      }
+  }
+  
+
