@@ -20,8 +20,7 @@ class Web_server():
         self.server_name = "Server: RobDanServer";
         self.buffer_size = 80000
         self.request_method = ""
-        self.get_request_data = ""
-        self.post_request_data = ""
+        self.request_data = ""
         self.time_stamp = ""
         self.url = ""
 
@@ -65,14 +64,30 @@ class Web_server():
         accepted_exist = 0
         request_method  = ""
         referer = ""
+        file_to_send = bytearray()
+        successful_read = False
+        file_extension = ""
+        file_mime_type = ""
+        file_length = 0
         
         try:       
             data = connection.recv(self.buffer_size)
             if data:  
             
                 file_name , accepted_data_types , accepted_exist , request_method , referer  = self.get_request_information ( data )
-                server_response = self.build_response( file_name , accepted_data_types , accepted_exist , request_method , referer)
-                # print( server_response )
+                file_extension ,  file_mime_type , file_to_send  , successful_read , file_length  = self.get_requested_file_information(file_name)
+                mime_type_exist = self.verify_accepted_file_types(accepted_data_types, file_mime_type )
+
+                if( mime_type_exist == False ) :
+                    return_code , code_message = self.set_return_code_information(successful_read , accepted_data_types , file_mime_type , accepted_exist , mime_type_exist )
+                    if (return_code == 406):
+                        file_length = 0
+                else:
+                    return_code , code_message = self.set_return_code_information(successful_read , accepted_data_types , file_mime_type , accepted_exist , mime_type_exist )
+
+                server_response = self.build_response( accepted_data_types , accepted_exist , request_method , referer , file_to_send  , successful_read , file_extension , file_mime_type, file_length , return_code , code_message )
+
+                #print( server_response )
 
                 connection.send(server_response)
 
@@ -95,10 +110,70 @@ class Web_server():
         request_method = request[0].split(' ')[0]
         referer = self.get_referer_header_data(request)
         accepted_file_extesion , accepted_exist = self.get_accept_header_data(request)
-
         file_name = self.process_by_request_method(request_method,request)
     
         return file_name , accepted_file_extesion , accepted_exist , request_method , referer
+
+    """Verifies if the request is by GET,POST OR HEAD (I think these conditions are just used to write in the log)"""
+    def process_by_request_method(self,request_method , request):
+        file_address = "webRoot" + (request[0].split(' ')[1])  #Gets the file name to open it from the webroot folder
+        self.request_data = ""
+        if (request_method == "GET"):
+            if(file_address.find('?') > -1):
+                variables_and_file_name = file_address.split('?')
+                file_address = variables_and_file_name[0]
+                self.request_data = variables = variables_and_file_name[1]
+                
+            self.url = file_address 
+
+        elif(request_method == "POST"):
+            self.url = file_address
+            self.request_data = request[ len(request) - 1 ]
+          
+        elif (request_method == "HEAD"):
+            self.url = file_address
+            
+        return file_address
+
+    def get_requested_file_information(self,file_name):
+        file_extension = ""
+        file_mime_type = ""
+        file_to_send  = bytearray () 
+        successful_read = False
+        file_length = 0
+
+        try:
+            file_extension = self.file_processor.get_file_extension(file_name)
+            file_mime_type = mimetypes.types_map[file_extension]
+            file_to_send  , successful_read = self.file_processor.read_file(file_name)
+            file_length = self.file_processor.get_file_length(file_to_send)
+        except:
+            file_mime_type = ""
+
+        return file_extension ,  file_mime_type , file_to_send  , successful_read , file_length 
+
+
+    def set_return_code_information(self, successful_read , accepted_data_types , file_mime_type , accepted_exist , mime_type_exist):
+        return_code = 0
+        code_message = ""
+
+        print(str(successful_read) + "\n" + str(accepted_data_types) + "\n" + str(file_mime_type) + "\n" + str(accepted_exist) + "\n" + str(mime_type_exist))
+
+        if( successful_read == True):
+            print("lei")
+            if (accepted_exist > -1 and mime_type_exist == False):
+                return_code = 406
+                code_message = "Not Acceptable"
+
+            else:
+                return_code = 200
+                code_message = "OK"
+
+        else: 
+            return_code = 404
+            code_message = "Not Found"
+
+        return return_code,code_message
 
     """Verifies if the request has the Referer Header, if it has some data returns it"""
     def get_referer_header_data(self,request):
@@ -116,27 +191,6 @@ class Web_server():
         return accepted_file_extesion , accepted_exist
 
 
-    def set_return_code_information(self, successful_read , accepted_data_types , file_mime_type , accepted_exist ):
-        return_code = 0
-        code_message = ""
-
-        if (successful_read == True):
-            if (accepted_exist > -1 ): 
-                if( self.verify_accepted_file_types(accepted_data_types, file_mime_type ) == False ) : #accepted_data_types != file_mime_type and accepted_data_types != "*/*"):
-                    return_code = 406
-                    code_message = "Not Acceptable"
-                else:
-                    return_code = 200
-                    code_message = "OK"
-            else:
-                return_code = 200
-                code_message = "OK"
-                
-        elif (successful_read == False ):
-            return_code = 404
-            code_message = "Not Found"
-
-        return return_code,code_message
 
     """Verifies if accepted_data_types contains file_mime_type """
     def verify_accepted_file_types(self, accepted_data_types, file_mime_type  ):
@@ -151,29 +205,19 @@ class Web_server():
         
     """Builds the response from server to client
         return : the final response to client """
-    def build_response(self , file_name , accepted_data_types , accepted_exist , request_method ,referer ):
+    def build_response(self , accepted_data_types , accepted_exist , request_method , referer , file_to_send  , successful_read , file_extension , file_mime_type, file_length , return_code , code_message ):
 
         final_response = bytearray()
-        file_to_send  , successful_read = self.file_processor.read_file(file_name)
-        file_extension = self.file_processor.get_file_extension(file_name)
-        try:
-            file_mime_type = mimetypes.types_map[file_extension]
-        except:
-            file_mime_type = ""
-
-        return_code , code_message = self.set_return_code_information(successful_read , accepted_data_types , file_mime_type , accepted_exist )
         first_line = "HTTP/1.1 " + str(return_code) + " " + code_message
         today_date = datetime.datetime.today()
         date = "Date: " + self.days[today_date.weekday()] + ", " + str(today_date.day) + " " + self.months[today_date.month] + " " + str(today_date.hour) + ":" + str(today_date.minute) + ":" + str(today_date.second) + " GMT" ;
-        content_length = "Content-Length: 0";
+        content_length = "Content-Length: " + str(file_length);
         content_type = ""
  
         if(successful_read == True ):
 
             if (return_code == 200) : 
                 try:
-                    file_length = self.file_processor.get_file_length(file_to_send)
-                    content_length = content_length.replace("0", str(file_length));
                     content_type = "Content-Type: " + mimetypes.types_map[file_extension]; # myme type, uses file extension
                     file_to_send = file_to_send.decode("utf-8")
                     final_response += ((first_line + "\r\n" + date + "\r\n" + self.server_name + "\r\n" + content_length + "\r\n" + content_type + "\r\n" + "\r\n" + file_to_send ).encode()) 
@@ -184,7 +228,6 @@ class Web_server():
                     final_response += file_to_send
                     self.log_writer.write_server_log(request_method,self.server_name.split(" ")[1], referer , self.url , self.request_data)
 
-
             elif (return_code == 406) :
                 final_response += ((first_line + "\r\n" + date + "\r\n" + self.server_name + "\r\n" + content_length + "\r\n" + content_type + "\r\n" + "\r\n").encode())
         else:
@@ -192,32 +235,6 @@ class Web_server():
 
         return final_response
 
-    """Verifies if the request is by GET,POST OR HEAD (I think these conditions are just used to write in the log)"""
-    def process_by_request_method(self,request_method,request):
-        file_address = "webRoot" + (request[0].split(' ')[1])  #Gets the file name to open it from the webroot folder
-        self.request_data = ""
-        if (request_method == "GET"):
-            self.get_request_data = ""
-            if(file_address.find('?') > -1):
-                variables_and_file_name = file_address.split('?')
-                file_address = variables_and_file_name[0]
-                self.request_data = variables = variables_and_file_name[1]
-                
-            self.url = file_address 
-            #self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1],referer , self.url , self.get_request_data)
-
-        elif(request_method == "POST"):
-            self.url = file_address
-            self.request_data = request[ len(request) - 1 ]
-            #self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1],referer , self.url , self.post_request_data)
-          
-        elif (request_method == "HEAD"):
-            self.url = file_address
-            #self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1],referer , self.url , "")
-
-            pass
-       
-        return file_address
         
   
 
