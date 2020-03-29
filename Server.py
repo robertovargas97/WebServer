@@ -6,9 +6,6 @@ import datetime
 import mimetypes
 import threading
 
-
-#WE NEED TO MODULARIZE THIS PART AND MAYBE MAKE A CLASS
-
 class Web_server():
     
     def __init__(self , port , file_processor , log_writer):
@@ -19,11 +16,14 @@ class Web_server():
         self.months = ["Dec","Jan","Feb","Mar","Apr","May","Jun","July","Aug","Sep","Oct","Nov"]
         self.server_name = "Server: RobDanServer";
         self.buffer_size = 80000
-        self.request_method = ""
-        self.request_data = ""
-        self.time_stamp = ""
-        self.url = ""
+    
+    """Verifis if the request method is implemented"""
+    def is_implemented ( self, request_method ):
+        implemented = False
+        if (request_method == "GET" or request_method == "POST" or request_method == "HEAD"):
+            implemented = True
 
+        return implemented
 
     """Starts to listen requests from clients"""
     def start_server(self):
@@ -74,18 +74,20 @@ class Web_server():
             data = connection.recv(self.buffer_size)
             if data:  
             
-                file_name , accepted_data_types , accepted_exist , request_method , referer  = self.get_request_information ( data )
+                file_name , accepted_data_types , accepted_exist , request_method , referer , request_data  , url  = self.get_request_information ( data )
                 file_extension ,  file_mime_type , file_to_send  , successful_read , file_length  = self.get_requested_file_information(file_name)
                 mime_type_exist = self.verify_accepted_file_types(accepted_data_types, file_mime_type )
+                return_code , code_message = self.get_return_code_information(successful_read , accepted_data_types , file_mime_type , accepted_exist , mime_type_exist , request_method  )
 
-                if( mime_type_exist == False ) :
-                    return_code , code_message = self.set_return_code_information(successful_read , accepted_data_types , file_mime_type , accepted_exist , mime_type_exist )
-                    if (return_code == 406):
-                        file_length = 0
+                if(return_code == 501):
+                    file_length = 0
+
                 else:
-                    return_code , code_message = self.set_return_code_information(successful_read , accepted_data_types , file_mime_type , accepted_exist , mime_type_exist )
-
-                server_response = self.build_response( accepted_data_types , accepted_exist , request_method , referer , file_to_send  , successful_read , file_extension , file_mime_type, file_length , return_code , code_message )
+                    if( mime_type_exist == False ) :
+                        if (return_code == 406):
+                            file_length = 0
+                        
+                server_response = self.build_response( accepted_data_types , accepted_exist , request_method , referer , file_to_send  , successful_read , file_extension , file_mime_type, file_length , return_code , code_message , request_data  , url )
 
                 #print( server_response )
 
@@ -102,7 +104,6 @@ class Web_server():
         except ConnectionResetError :
             print("An existing connection was forcibly closed by the remote host")
 
-
     """Processes the request coming from clients and sends the final response to them"""
     def get_request_information (self , data) : 
         data_string = data.decode("utf-8")  #Converts bites to String
@@ -110,31 +111,34 @@ class Web_server():
         request_method = request[0].split(' ')[0]
         referer = self.get_referer_header_data(request)
         accepted_file_extesion , accepted_exist = self.get_accept_header_data(request)
-        file_name = self.process_by_request_method(request_method,request)
-    
-        return file_name , accepted_file_extesion , accepted_exist , request_method , referer
+        file_name , request_data  , url = self.process_by_request_method(request_method,request)
+        return file_name , accepted_file_extesion , accepted_exist , request_method , referer , request_data  , url
 
     """Verifies if the request is by GET,POST OR HEAD (I think these conditions are just used to write in the log)"""
     def process_by_request_method(self,request_method , request):
+        url = ""
         file_address = "webRoot" + (request[0].split(' ')[1])  #Gets the file name to open it from the webroot folder
-        self.request_data = ""
+        request_data = ""
+
         if (request_method == "GET"):
+
             if(file_address.find('?') > -1):
                 variables_and_file_name = file_address.split('?')
                 file_address = variables_and_file_name[0]
-                self.request_data = variables = variables_and_file_name[1]
+                request_data = variables = variables_and_file_name[1]
                 
-            self.url = file_address 
+            url = file_address 
 
         elif(request_method == "POST"):
-            self.url = file_address
-            self.request_data = request[ len(request) - 1 ]
+            url = file_address
+            request_data = request[ len(request) - 1 ]
           
         elif (request_method == "HEAD"):
-            self.url = file_address
+            url = file_address
             
-        return file_address
+        return file_address , request_data  , url
 
+    """Gets the requested file information to process it"""
     def get_requested_file_information(self,file_name):
         file_extension = ""
         file_mime_type = ""
@@ -152,26 +156,27 @@ class Web_server():
 
         return file_extension ,  file_mime_type , file_to_send  , successful_read , file_length 
 
-
-    def set_return_code_information(self, successful_read , accepted_data_types , file_mime_type , accepted_exist , mime_type_exist):
+    """Sets the retunr code of the request"""
+    def get_return_code_information(self, successful_read , accepted_data_types , file_mime_type , accepted_exist , mime_type_exist , request_method):
         return_code = 0
         code_message = ""
 
-        print(str(successful_read) + "\n" + str(accepted_data_types) + "\n" + str(file_mime_type) + "\n" + str(accepted_exist) + "\n" + str(mime_type_exist))
+        if( self.is_implemented (request_method ) == True):
+            if( successful_read == True):
+                if (accepted_exist > -1 and mime_type_exist == False):
+                    return_code = 406
+                    code_message = "Not Acceptable"
 
-        if( successful_read == True):
-            print("lei")
-            if (accepted_exist > -1 and mime_type_exist == False):
-                return_code = 406
-                code_message = "Not Acceptable"
-
-            else:
-                return_code = 200
-                code_message = "OK"
-
-        else: 
-            return_code = 404
-            code_message = "Not Found"
+                else:
+                    return_code = 200
+                    code_message = "OK"
+            else: 
+                return_code = 404
+                code_message = "Not Found"
+        
+        else :
+            return_code = 501
+            code_message = "Not Implemented"
 
         return return_code,code_message
 
@@ -190,8 +195,6 @@ class Web_server():
         accepted_exist = request[3].find("Accept:")
         return accepted_file_extesion , accepted_exist
 
-
-
     """Verifies if accepted_data_types contains file_mime_type """
     def verify_accepted_file_types(self, accepted_data_types, file_mime_type  ):
         acceptable = False
@@ -205,7 +208,7 @@ class Web_server():
         
     """Builds the response from server to client
         return : the final response to client """
-    def build_response(self , accepted_data_types , accepted_exist , request_method , referer , file_to_send  , successful_read , file_extension , file_mime_type, file_length , return_code , code_message ):
+    def build_response(self , accepted_data_types , accepted_exist , request_method , referer , file_to_send  , successful_read , file_extension , file_mime_type, file_length , return_code , code_message , request_data  , url):
 
         final_response = bytearray()
         first_line = "HTTP/1.1 " + str(return_code) + " " + code_message
@@ -221,12 +224,12 @@ class Web_server():
                     content_type = "Content-Type: " + mimetypes.types_map[file_extension]; # myme type, uses file extension
                     file_to_send = file_to_send.decode("utf-8")
                     final_response += ((first_line + "\r\n" + date + "\r\n" + self.server_name + "\r\n" + content_length + "\r\n" + content_type + "\r\n" + "\r\n" + file_to_send ).encode()) 
-                    self.log_writer.write_server_log(request_method,self.server_name.split(" ")[1], referer , self.url , self.request_data)
+                    self.log_writer.write_server_log(request_method,self.server_name.split(" ")[1], referer , url , request_data)
  
                 except:
                     final_response += ((first_line + "\r\n" + date + "\r\n" + self.server_name + "\r\n" + content_length + "\r\n" + content_type + "\r\n" + "\r\n").encode())
                     final_response += file_to_send
-                    self.log_writer.write_server_log(request_method,self.server_name.split(" ")[1], referer , self.url , self.request_data)
+                    self.log_writer.write_server_log(request_method,self.server_name.split(" ")[1], referer , url , request_data)
 
             elif (return_code == 406) :
                 final_response += ((first_line + "\r\n" + date + "\r\n" + self.server_name + "\r\n" + content_length + "\r\n" + content_type + "\r\n" + "\r\n").encode())
