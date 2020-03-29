@@ -23,7 +23,6 @@ class Web_server():
         self.get_request_data = ""
         self.post_request_data = ""
         self.time_stamp = ""
-       # self.referer = ""
         self.url = ""
 
 
@@ -60,16 +59,19 @@ class Web_server():
     """Processes the request coming from clients and sends the final response to them """
     def receive_request(self,connection):
         data = None
-        accept_data = ""
+        accepted_data_types = ""
         file_name = ""
         server_response = ""
+        accepted_exist = 0
+        request_method  = ""
+        referer = ""
         
         try:       
             data = connection.recv(self.buffer_size)
             if data:  
             
-                file_name , accept_data , accepted_exist , request_method , referer  = self.get_request_information ( data )
-                server_response = self.build_response( file_name , accept_data , accepted_exist , request_method , referer)
+                file_name , accepted_data_types , accepted_exist , request_method , referer  = self.get_request_information ( data )
+                server_response = self.build_response( file_name , accepted_data_types , accepted_exist , request_method , referer)
                 # print( server_response )
 
                 connection.send(server_response)
@@ -86,15 +88,41 @@ class Web_server():
             print("An existing connection was forcibly closed by the remote host")
 
 
+    """Processes the request coming from clients and sends the final response to them"""
+    def get_request_information (self , data) : 
+        data_string = data.decode("utf-8")  #Converts bites to String
+        request = data_string.split( "\r\n")  #Splits the request in lines to put each line in an array (To analyze headers in the future) 
+        request_method = request[0].split(' ')[0]
+        referer = self.get_referer_header_data(request)
+        accepted_file_extesion , accepted_exist = self.get_accept_header_data(request)
+
+        file_name = self.process_by_request_method(request_method,request)
+    
+        return file_name , accepted_file_extesion , accepted_exist , request_method , referer
+
+    """Verifies if the request has the Referer Header, if it has some data returns it"""
+    def get_referer_header_data(self,request):
+        referer = ""
+        for header in request:
+            if (header.find("Referer:") > -1 ): 
+                referer = header.split()[1]
+                break
+        return referer
+
+    """Verifies if the request has the Accept Header, if it has some data returns it"""
+    def get_accept_header_data(self,request):
+        accepted_file_extesion = request[3].split(' ')[1].split(',')
+        accepted_exist = request[3].find("Accept:")
+        return accepted_file_extesion , accepted_exist
 
 
-    def set_return_code_information(self, successful_read , accept_data , file_mime_type , accepted_exist ):
+    def set_return_code_information(self, successful_read , accepted_data_types , file_mime_type , accepted_exist ):
         return_code = 0
         code_message = ""
 
         if (successful_read == True):
             if (accepted_exist > -1 ): 
-                if( accept_data != file_mime_type and accept_data != "*/*"):
+                if( self.verify_accepted_file_types(accepted_data_types, file_mime_type ) == False ) : #accepted_data_types != file_mime_type and accepted_data_types != "*/*"):
                     return_code = 406
                     code_message = "Not Acceptable"
                 else:
@@ -109,10 +137,21 @@ class Web_server():
             code_message = "Not Found"
 
         return return_code,code_message
+
+    """Verifies if accepted_data_types contains file_mime_type """
+    def verify_accepted_file_types(self, accepted_data_types, file_mime_type  ):
+        acceptable = False
+                
+        for type in accepted_data_types:
+            if ( type == file_mime_type or type == "*/*" ):
+                acceptable = True
+                break
+
+        return acceptable
         
     """Builds the response from server to client
         return : the final response to client """
-    def build_response(self , file_name , accept_data , accepted_exist , request_method ,referer ):
+    def build_response(self , file_name , accepted_data_types , accepted_exist , request_method ,referer ):
 
         final_response = bytearray()
         file_to_send  , successful_read = self.file_processor.read_file(file_name)
@@ -122,7 +161,7 @@ class Web_server():
         except:
             file_mime_type = ""
 
-        return_code , code_message = self.set_return_code_information(successful_read , accept_data , file_mime_type , accepted_exist )
+        return_code , code_message = self.set_return_code_information(successful_read , accepted_data_types , file_mime_type , accepted_exist )
         first_line = "HTTP/1.1 " + str(return_code) + " " + code_message
         today_date = datetime.datetime.today()
         date = "Date: " + self.days[today_date.weekday()] + ", " + str(today_date.day) + " " + self.months[today_date.month] + " " + str(today_date.hour) + ":" + str(today_date.minute) + ":" + str(today_date.second) + " GMT" ;
@@ -165,48 +204,26 @@ class Web_server():
                 self.request_data = variables = variables_and_file_name[1]
                 
             self.url = file_address 
-            #self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1],self.referer , self.url , self.get_request_data)
+            #self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1],referer , self.url , self.get_request_data)
 
         elif(request_method == "POST"):
             self.url = file_address
             self.request_data = request[ len(request) - 1 ]
-            #self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1],self.referer , self.url , self.post_request_data)
+            #self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1],referer , self.url , self.post_request_data)
           
         elif (request_method == "HEAD"):
             self.url = file_address
-            #self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1],self.referer , self.url , "")
+            #self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1],referer , self.url , "")
 
             pass
        
         return file_address
         
-    def get_referer(self,request):
-        referer = ""
-        for header in request: #Just for test
-            if (header.find("Referer:") > -1 ): 
-                referer = header.split()[1]
-                break
-        return referer
+  
 
-    def verify_accept(self,request):
-        accepted_file_extesion = request[3].split(' ')[1]
-        accepted_exist = request[3].find("Accept:")
-        return accepted_file_extesion , accepted_exist
-
-    """Processes the request coming from clients and sends the final response to them """
-    def get_request_information (self , data) : 
-        data_string = data.decode("utf-8")  #Converts bites to String
-        request = data_string.split( "\r\n")  #Splits the request in lines to put each line in an array (To analyze headers in the future) 
-        request_method = request[0].split(' ')[0]
-        referer = self.get_referer(request)
-
-        for l in request:
-            print(l)
-
-        accepted_file_extesion , accepted_exist = self.verify_accept(request)
-        file_name = self.process_by_request_method(request_method,request)
     
-        return file_name , accepted_file_extesion , accepted_exist , request_method , referer
+
+    
 
    
 
