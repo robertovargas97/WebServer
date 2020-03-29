@@ -23,7 +23,7 @@ class File_processor():
     def get_file_extension(self,file_name):
         file_extension = ""
         try:
-            file_extension = ('.' + file_name.split('.')[1])
+            file_extension = ('.' + file_name.split('.')[3])
         except:
             file_extension = ".null"
     

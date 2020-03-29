@@ -117,7 +117,7 @@ class Web_server():
     """Verifies if the request is by GET,POST OR HEAD (I think these conditions are just used to write in the log)"""
     def process_by_request_method(self,request_method , request):
         url = ""
-        file_address = "webRoot" + (request[0].split(' ')[1])  #Gets the file name to open it from the webroot folder
+        file_address = "../webRoot" + (request[0].split(' ')[1])  #Gets the file name to open it from the webroot folder
         request_data = ""
 
         if (request_method == "GET"):
