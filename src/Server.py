@@ -126,15 +126,13 @@ class Web_server():
                 variables_and_file_name = file_address.split('?')
                 file_address = variables_and_file_name[0]
                 request_data = variables = variables_and_file_name[1]
-                
-            url = file_address 
-
+            
+            url = file_address.split("../webRoot/")[1]
+            
         elif(request_method == "POST"):
-            url = file_address
             request_data = request[ len(request) - 1 ]
           
-        elif (request_method == "HEAD"):
-            url = file_address
+        url = file_address.split("../webRoot/")[1]
             
         return file_address , request_data  , url
 
