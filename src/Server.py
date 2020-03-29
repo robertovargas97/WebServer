@@ -211,7 +211,7 @@ class Web_server():
         final_response = bytearray()
         first_line = "HTTP/1.1 " + str(return_code) + " " + code_message
         today_date = datetime.datetime.today()
-        date = "Date: " + self.days[today_date.weekday()] + ", " + str(today_date.day) + " " + self.months[today_date.month] + " " + str(today_date.hour) + ":" + str(today_date.minute) + ":" + str(today_date.second) + " GMT" ;
+        date = "Date: " + self.days[today_date.weekday() % 6] + ", " + str(today_date.day) + " " + self.months[today_date.month] + " " + str(today_date.hour) + ":" + str(today_date.minute) + ":" + str(today_date.second) + " GMT" ;
         content_length = "Content-Length: " + str(file_length);
         content_type = ""
  
