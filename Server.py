@@ -23,7 +23,7 @@ class Web_server():
         self.get_request_data = ""
         self.post_request_data = ""
         self.time_stamp = ""
-        self.referer = ""
+       # self.referer = ""
         self.url = ""
 
 
@@ -68,8 +68,8 @@ class Web_server():
             data = connection.recv(self.buffer_size)
             if data:  
             
-                file_name , accept_data , accepted_exist  = self.get_request_file_information ( data )
-                server_response = self.build_response( file_name , accept_data , accepted_exist  )
+                file_name , accept_data , accepted_exist , request_method , referer  = self.get_request_information ( data )
+                server_response = self.build_response( file_name , accept_data , accepted_exist , request_method , referer)
                 # print( server_response )
 
                 connection.send(server_response)
@@ -88,8 +88,6 @@ class Web_server():
 
 
 
-
-    
     def set_return_code_information(self, successful_read , accept_data , file_mime_type , accepted_exist ):
         return_code = 0
         code_message = ""
@@ -108,13 +106,13 @@ class Web_server():
                 
         elif (successful_read == False ):
             return_code = 404
-            code_message = "Forbidden"
+            code_message = "Not Found"
 
         return return_code,code_message
         
     """Builds the response from server to client
         return : the final response to client """
-    def build_response(self , file_name , accept_data , accepted_exist ):
+    def build_response(self , file_name , accept_data , accepted_exist , request_method ,referer ):
 
         final_response = bytearray()
         file_to_send  , successful_read = self.file_processor.read_file(file_name)
@@ -140,12 +138,12 @@ class Web_server():
                     content_type = "Content-Type: " + mimetypes.types_map[file_extension]; # myme type, uses file extension
                     file_to_send = file_to_send.decode("utf-8")
                     final_response += ((first_line + "\r\n" + date + "\r\n" + self.server_name + "\r\n" + content_length + "\r\n" + content_type + "\r\n" + "\r\n" + file_to_send ).encode()) 
-                    self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1], self.referer , self.url , self.request_data)
+                    self.log_writer.write_server_log(request_method,self.server_name.split(" ")[1], referer , self.url , self.request_data)
  
                 except:
                     final_response += ((first_line + "\r\n" + date + "\r\n" + self.server_name + "\r\n" + content_length + "\r\n" + content_type + "\r\n" + "\r\n").encode())
                     final_response += file_to_send
-                    self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1], self.referer , self.url , self.request_data)
+                    self.log_writer.write_server_log(request_method,self.server_name.split(" ")[1], referer , self.url , self.request_data)
 
 
             elif (return_code == 406) :
@@ -159,7 +157,7 @@ class Web_server():
     def process_by_request_method(self,request_method,request):
         file_address = "webRoot" + (request[0].split(' ')[1])  #Gets the file name to open it from the webroot folder
         self.request_data = ""
-        if (self.request_method == "GET"):
+        if (request_method == "GET"):
             self.get_request_data = ""
             if(file_address.find('?') > -1):
                 variables_and_file_name = file_address.split('?')
@@ -169,12 +167,12 @@ class Web_server():
             self.url = file_address 
             #self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1],self.referer , self.url , self.get_request_data)
 
-        elif( self.request_method == "POST"):
+        elif(request_method == "POST"):
             self.url = file_address
             self.request_data = request[ len(request) - 1 ]
             #self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1],self.referer , self.url , self.post_request_data)
           
-        elif ( self.request_method == "HEAD"):
+        elif (request_method == "HEAD"):
             self.url = file_address
             #self.log_writer.write_server_log(self.request_method,self.server_name.split(" ")[1],self.referer , self.url , "")
 
@@ -182,31 +180,33 @@ class Web_server():
        
         return file_address
         
-    def set_referer(self,request):
-        self.referer = ""
+    def get_referer(self,request):
+        referer = ""
         for header in request: #Just for test
             if (header.find("Referer:") > -1 ): 
-                self.referer = header.split()[1]
-               
+                referer = header.split()[1]
+                break
+        return referer
+
     def verify_accept(self,request):
         accepted_file_extesion = request[3].split(' ')[1]
         accepted_exist = request[3].find("Accept:")
         return accepted_file_extesion , accepted_exist
 
     """Processes the request coming from clients and sends the final response to them """
-    def get_request_file_information (self , data) : 
+    def get_request_information (self , data) : 
         data_string = data.decode("utf-8")  #Converts bites to String
         request = data_string.split( "\r\n")  #Splits the request in lines to put each line in an array (To analyze headers in the future) 
+        request_method = request[0].split(' ')[0]
+        referer = self.get_referer(request)
 
         for l in request:
             print(l)
 
-        self.request_method = request[0].split(' ')[0]
-        self.set_referer(request)
         accepted_file_extesion , accepted_exist = self.verify_accept(request)
-        file_name = self.process_by_request_method(self.request_method,request)
+        file_name = self.process_by_request_method(request_method,request)
     
-        return file_name , accepted_file_extesion , accepted_exist
+        return file_name , accepted_file_extesion , accepted_exist , request_method , referer
 
    
 
