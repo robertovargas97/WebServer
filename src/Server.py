@@ -12,10 +12,11 @@ class Web_server():
         self.port = port
         self.file_processor = file_processor
         self.log_writer = log_writer
-        self.days = ["Sun,""Mon","Tue","Wed","Thu","Fri","Sat"]
+        self.days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
         self.months = ["Dec","Jan","Feb","Mar","Apr","May","Jun","July","Aug","Sep","Oct","Nov"]
         self.server_name = "Server: RobDanServer";
         self.buffer_size = 80000
+        print(len(self.days))
     
     """Verifis if the request method is implemented"""
     def is_implemented ( self, request_method ):
@@ -211,7 +212,7 @@ class Web_server():
         final_response = bytearray()
         first_line = "HTTP/1.1 " + str(return_code) + " " + code_message
         today_date = datetime.datetime.today()
-        date = "Date: " + self.days[today_date.weekday() % 6] + ", " + str(today_date.day) + " " + self.months[today_date.month] + " " + str(today_date.hour) + ":" + str(today_date.minute) + ":" + str(today_date.second) + " GMT" ;
+        date = "Date: " + self.days[today_date.weekday()] + ", " + str(today_date.day) + " " + self.months[today_date.month] + " " + str(today_date.hour) + ":" + str(today_date.minute) + ":" + str(today_date.second) + " GMT" ;
         content_length = "Content-Length: " + str(file_length);
         content_type = ""
  
