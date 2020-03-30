@@ -16,7 +16,6 @@ class Web_server():
         self.months = ["Dec","Jan","Feb","Mar","Apr","May","Jun","July","Aug","Sep","Oct","Nov"]
         self.server_name = "Server: RobDanServer";
         self.buffer_size = 80000
-        print(len(self.days))
     
     """Verifis if the request method is implemented"""
     def is_implemented ( self, request_method ):
@@ -113,6 +112,9 @@ class Web_server():
         referer = self.get_referer_header_data(request)
         accepted_file_extesion , accepted_exist = self.get_accept_header_data(request)
         file_name , request_data  , url = self.process_by_request_method(request_method,request)
+        if (file_name == "../webRoot/"):
+            file_name += "index.html"
+        
         return file_name , accepted_file_extesion , accepted_exist , request_method , referer , request_data  , url
 
     """Verifies if the request is by GET,POST OR HEAD (I think these conditions are just used to write in the log)"""
@@ -233,13 +235,18 @@ class Web_server():
             elif (return_code == 406) :
                 final_response += ((first_line + "\r\n" + date + "\r\n" + self.server_name + "\r\n" + content_length + "\r\n" + content_type + "\r\n" + "\r\n").encode())
         else:
+            
+            errorFile , content_type , content_length = self.get_error_file()
             final_response += ((first_line + "\r\n" + date + "\r\n" + self.server_name + "\r\n" + content_length + "\r\n" + content_type + "\r\n" + "\r\n").encode())
-
+            final_response += errorFile
         return final_response
 
-        
+    def get_error_file (self):
+        errorFile , error = self.file_processor.read_file("../webRoot/404Error.html")
+        content_type = "Content-Type: " + mimetypes.types_map[".html"];
+        content_length = "Content-Length: " + str(len(errorFile));
   
-
+        return errorFile , content_type , content_length
     
 
     
