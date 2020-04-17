@@ -218,8 +218,7 @@ class Web_server():
         content_length = "Content-Length: " + str(file_length);
         content_type = ""
  
-        if(successful_read == True ):
-
+        if(successful_read == True and return_code != 501 ):
             if (return_code == 200) : 
                 try:
                     content_type = "Content-Type: " + mimetypes.types_map[file_extension]; # myme type, uses file extension
@@ -235,7 +234,6 @@ class Web_server():
             elif (return_code == 406) :
                 final_response += ((first_line + "\r\n" + date + "\r\n" + self.server_name + "\r\n" + content_length + "\r\n" + content_type + "\r\n" + "\r\n").encode())
         else:
-            
             errorFile , content_type , content_length = self.get_error_file()
             final_response += ((first_line + "\r\n" + date + "\r\n" + self.server_name + "\r\n" + content_length + "\r\n" + content_type + "\r\n" + "\r\n").encode())
             final_response += errorFile
